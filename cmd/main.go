@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"tg_bot_id/internal/config"
 
@@ -8,6 +9,7 @@ import (
 )
 
 func main() {
+
 	botAPI, err := tgbotapi.NewBotAPI(config.Get().TelegramBotToken)
 	if err != nil {
 		log.Printf("[ERROR] failed to create bot %v", err)
@@ -26,12 +28,26 @@ func main() {
 		if update.Message == nil {
 			continue
 		}
+		if !update.Message.IsCommand() {
+			continue
+		}
 
-		log.Printf("[This is log for msg] [%s] %s", update.Message.From.UserName, update.Message.Text)
+		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
 
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "You said: "+update.Message.Text+update.Message.From.UserName)
-		msg.ReplyToMessageID = update.Message.MessageID
+		switch update.Message.Command() {
+		case "start":
+			msg.Text = "Бот запущен"
+		case "check_id":
+			userID := update.Message.From.ID
+			log.Printf("[This is log for msg] [%s] %s\n", update.Message.From.UserName, update.Message.Text)
+			msg.Text = fmt.Sprintf("Ваш ID: %v", userID)
+			log.Printf("[This is log for messageBot]: %v\n", msg)
+		default:
+			msg.Text = "Я не знаю такой команды"
+		}
 
-		botAPI.Send(msg)
+		if _, err := botAPI.Send(msg); err != nil {
+			log.Printf("[ERROR] Failed to send ID: %v", err)
+		}
 	}
 }

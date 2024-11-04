@@ -1,14 +1,24 @@
 package main
 
 import (
-	"fmt"
 	"log"
+	"sync"
 	"tg_bot_id/internal/config"
+	"tg_bot_id/internal/server"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+var waitGo sync.WaitGroup
+
 func main() {
+
+	waitGo.Add(2)
+
+	go func() {
+		defer waitGo.Done()
+		server.StartWebServer()
+	}()
 
 	botAPI, err := tgbotapi.NewBotAPI(config.Get().TelegramBotToken)
 	if err != nil {
@@ -17,37 +27,12 @@ func main() {
 	}
 
 	botAPI.Debug = true
-	log.Printf("Authorized on acc %v", botAPI.Self.UserName)
+	log.Printf("Authorized on account %v\n\n", botAPI.Self.UserName)
 
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	go func() {
+		defer waitGo.Done()
+		server.StartBot(botAPI)
+	}()
 
-	updates := botAPI.GetUpdatesChan(u)
-
-	for update := range updates {
-		if update.Message == nil {
-			continue
-		}
-		if !update.Message.IsCommand() {
-			continue
-		}
-
-		msg := tgbotapi.NewMessage(update.Message.Chat.ID, "")
-
-		switch update.Message.Command() {
-		case "start":
-			msg.Text = "Бот запущен"
-		case "check_id":
-			userID := update.Message.From.ID
-			log.Printf("[This is log for msg] [%s] %s\n", update.Message.From.UserName, update.Message.Text)
-			msg.Text = fmt.Sprintf("Ваш ID: %v", userID)
-			log.Printf("[This is log for messageBot]: %v\n", msg)
-		default:
-			msg.Text = "Я не знаю такой команды"
-		}
-
-		if _, err := botAPI.Send(msg); err != nil {
-			log.Printf("[ERROR] Failed to send ID: %v", err)
-		}
-	}
+	waitGo.Wait()
 }

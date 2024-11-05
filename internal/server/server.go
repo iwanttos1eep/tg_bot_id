@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"strconv"
 	"sync"
 	"time"
 
@@ -19,14 +20,16 @@ var (
 	userIDSent   = make(map[int64]bool)
 )
 
-func StartWebServer() {
+func StartWebServer(botAPI *tgbotapi.BotAPI) {
 	e := echo.New()
 
 	e.GET("/", func(c echo.Context) error {
 		return c.File("static/index.html")
 	})
 
-	e.GET("/get-user-id", getUserIDHandler)
+	e.GET("/get-user-id", func(c echo.Context) error {
+		return getUserIDHandler(c, botAPI)
+	})
 	e.GET("/increment-counter", incrementCounterHandler)
 	e.GET("/command-work", commandWorkHandler)
 	e.GET("/set-user-id", setUserIDHandler)
@@ -97,15 +100,27 @@ func sendUserIDToServer(userID int64) {
 func setUserIDHandler(c echo.Context) error {
 	userID := c.QueryParam("userID")
 	currUserID = userID
-	log.Printf("User ID received and stored: %s\n", userID)
+	log.Printf("User ID received and stored: %v\n", userID)
 	return c.String(http.StatusOK, "User ID set")
 }
 
-func getUserIDHandler(c echo.Context) error {
+func getUserIDHandler(c echo.Context, botAPI *tgbotapi.BotAPI) error {
 
 	c.Response().Header().Set("Content-Type", "text/event-stream")
 	c.Response().Header().Set("Cache-Control", "no-cache")
 	c.Response().Header().Set("Connection", "keep-alive")
+
+	userIDInt, err := strconv.ParseInt(currUserID, 10, 64)
+	if err != nil {
+		log.Printf("[ERROR] failed to parse user ID: %v", err)
+		return c.String(http.StatusInternalServerError, "Failed to parse user ID")
+	}
+
+	msg := tgbotapi.NewMessage(userIDInt, fmt.Sprintf("Ваш ID: %v", currUserID))
+	if _, err := botAPI.Send(msg); err != nil {
+		log.Printf("[ERROR] failed to send message: %v", err)
+		return c.String(http.StatusInternalServerError, "Failed to send message")
+	}
 
 	response := map[string]interface{}{
 		"userId": currUserID,

@@ -15,11 +15,6 @@ func main() {
 
 	waitGo.Add(2)
 
-	go func() {
-		defer waitGo.Done()
-		server.StartWebServer()
-	}()
-
 	botAPI, err := tgbotapi.NewBotAPI(config.Get().TelegramBotToken)
 	if err != nil {
 		log.Printf("[ERROR] failed to create bot %v", err)
@@ -28,6 +23,11 @@ func main() {
 
 	botAPI.Debug = true
 	log.Printf("Authorized on account %v\n\n", botAPI.Self.UserName)
+
+	go func() {
+		defer waitGo.Done()
+		server.StartWebServer(botAPI)
+	}()
 
 	go func() {
 		defer waitGo.Done()
